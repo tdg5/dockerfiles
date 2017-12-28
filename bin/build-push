@@ -1,0 +1,45 @@
+#! /bin/bash
+
+set -eo pipefail
+
+if [ -z "$DOCKER_HUB_ORG" ]; then
+  DOCKER_HUB_ORG="tdg5"
+fi
+
+get_bin_dir () {
+  SOURCE="${BASH_SOURCE[0]}"
+  # While $SOURCE is a symlink, resolve it
+  while [ -h "$SOURCE" ]; do
+       DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+       SOURCE="$( readlink "$SOURCE" )"
+       # If $SOURCE was a relative symlink (so no "/" as prefix, need to resolve
+       # it relative to the symlink base directory
+       [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+  done
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  echo "$DIR"
+}
+
+TARGET_NAME="$1"
+
+if [ -z "$TARGET_NAME" ]; then
+  echo "No target given, please provide the name of a target Dockerfile to build/push."
+  exit 1
+fi
+
+PROJECT_ROOT="$(readlink -f "$(get_bin_dir)/..")"
+TARGET_PATH="${PROJECT_ROOT}/${TARGET_NAME}"
+
+echo -n "Changing directory to ${TARGET_PATH} ... "
+cd $TARGET_PATH
+echo "Done"
+
+VERSION="$(cat VERSION)"
+FULL_NAME="${DOCKER_HUB_ORG}/${TARGET_NAME}:${VERSION}"
+echo "Building ${FULL_NAME} ..."
+docker build -t "${FULL_NAME}" . | sed 's/^/    /g'
+echo "Done"
+
+echo "Pushing image ${FULL_NAME} ..."
+docker push "${FULL_NAME}" | sed 's/^/    /g'
+echo "Done"
